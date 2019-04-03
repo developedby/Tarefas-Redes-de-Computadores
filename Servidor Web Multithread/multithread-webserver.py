@@ -4,7 +4,7 @@ from sys import exit as sys_exit
 import http_request
 
 
-port = 1405
+port = 1973
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.bind(('', port))
 server_socket.listen()
