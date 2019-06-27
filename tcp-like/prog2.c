@@ -123,12 +123,16 @@ char packet_is_corrupt(pkt_t packet)
 /* called from layer 5, passed the data to be sent to other side */
 void A_output(msg_t message)
 {
+  // Se tem espaco na janela
   if (nextseqnum < base + N)
   {
     printf("Enviando pacote %d. Janela [%d, %d]\n", nextseqnum, base, nextseqnum);
 
+    // Cria o pacote e envia
     sndpkt[nextseqnum % 8] = make_pkt(nextseqnum, 0, message);
     tolayer3(0, sndpkt[nextseqnum % 8]);
+
+    // Se o novo pacote e o unico na janela
     if (base == nextseqnum)
     {
       starttimer(0, TIMEOUT_TIME);
@@ -153,13 +157,14 @@ void A_input(pkt_t packet)
 {
   if (!packet_is_corrupt(packet))
   {
+    // Se e um ACK novo (de um pacote na janela)
     if (packet.acknum >= base)
     {
       base = packet.acknum + 1;
       printf("ACK %d recebido. Avancando janela para [%d, %d]\n", packet.acknum, base, nextseqnum-1);
-
       stoptimer(0);
-      // Se tem outros pacotes na janela
+
+      // Se tem outros pacotes na janela, recomeca o timer
       if (base != nextseqnum)
         starttimer(0, TIMEOUT_TIME);
     }
@@ -180,6 +185,7 @@ void A_timerinterrupt(void)
 {
   int i;
   printf("Timeout! Reenviando [%d, %d]\n", base, nextseqnum-1);
+  // Reenvia todos os pacotes na janela
   for (i=base; i<nextseqnum; i++)
   {
     printf("Reenvio do pacote %d\n", i);
@@ -206,20 +212,26 @@ void B_input(pkt_t packet)
   {
     if(packet.seqnum == expectedseqnum)
     {
+      // Extrai o payload e manda pra camada 5
       printf("Pacote %d recebido. Retornando ACK\n", packet.seqnum);
       message = packet.payload;
       tolayer5(1, message);
+
+      // Envia ack
       tolayer3(1, make_pkt(expectedseqnum + 1, expectedseqnum, ack_msg));
+
       expectedseqnum++;
     }
     else
     {
+      // Se chegou o pacote errado reenvia ACK do ultimo pacote recebido com sucesso
       printf("Pacote %d incorreto recebido. Esperando %d. Reenviando ACK\n", packet.seqnum, expectedseqnum);
       tolayer3(1, make_pkt(expectedseqnum, expectedseqnum - 1, ack_msg));
     }
   }
   else
   {
+    // Se chegou um pacote corrompido reenvia ACK do ultimo pacote recebido com sucesso
     printf("Pacote %d corrompido recebido. Reenviando ACK\n", packet.seqnum);
     tolayer3(1, make_pkt(expectedseqnum, expectedseqnum - 1, ack_msg));
   }
