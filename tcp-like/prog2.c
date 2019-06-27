@@ -137,10 +137,10 @@ void A_output(msg_t message)
   }
   else
   {
-    printf("Explodiu o buffer de envio!\n");
-    exit(EXIT_FAILURE);
+    printf("Pacote recebido do layer5, mas a janela esta cheia\n");
+    //printf("Explodiu o buffer de envio!\n");
+    //exit(EXIT_FAILURE);
   }
-  
 }
 
 void B_output(msg_t message)  /* need be completed only for extra credit */
@@ -155,10 +155,13 @@ void A_input(pkt_t packet)
   {
     if (packet.acknum >= base)
     {
-      printf("ACK %d recebido. Avancando inicio da janela\n", packet.acknum);
+      base = packet.acknum + 1;
+      printf("ACK %d recebido. Avancando janela para [%d, %d]\n", packet.acknum, base, nextseqnum-1);
+
       stoptimer(0);
-      starttimer(0, TIMEOUT_TIME);
-      base = packet.acknum;
+      // Se tem outros pacotes na janela
+      if (base != nextseqnum)
+        starttimer(0, TIMEOUT_TIME);
     }
     else
     {
@@ -177,11 +180,12 @@ void A_timerinterrupt(void)
 {
   int i;
   printf("Timeout! Reenviando [%d, %d]\n", base, nextseqnum-1);
-  starttimer(0, TIMEOUT_TIME);
   for (i=base; i<nextseqnum; i++)
   {
+    printf("Reenvio do pacote %d\n", i);
     tolayer3(0, sndpkt[i % N]);
   }
+  starttimer(0, TIMEOUT_TIME);
 }  
 
 /* the following routine will be called once (only) before any other */
@@ -205,17 +209,19 @@ void B_input(pkt_t packet)
       printf("Pacote %d recebido. Retornando ACK\n", packet.seqnum);
       message = packet.payload;
       tolayer5(1, message);
-      tolayer3(1, make_pkt(0, expectedseqnum, ack_msg));
+      tolayer3(1, make_pkt(expectedseqnum + 1, expectedseqnum, ack_msg));
       expectedseqnum++;
     }
     else
     {
-      printf("Pacote %d incorreto recebido\n", packet.seqnum);
+      printf("Pacote %d incorreto recebido. Esperando %d. Reenviando ACK\n", packet.seqnum, expectedseqnum);
+      tolayer3(1, make_pkt(expectedseqnum, expectedseqnum - 1, ack_msg));
     }
   }
   else
   {
-    printf("Pacote %d corrompido recebido\n", packet.seqnum);
+    printf("Pacote %d corrompido recebido. Reenviando ACK\n", packet.seqnum);
+    tolayer3(1, make_pkt(expectedseqnum, expectedseqnum - 1, ack_msg));
   }
   
 }
